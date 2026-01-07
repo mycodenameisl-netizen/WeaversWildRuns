@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weavers Wild Runs</title>
+<style>
+body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #000;
+    height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #ff0066;
+}
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+/* Compact retro MP3 player control - firmly top-right */
+#loader {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    left: auto;
+    max-width: 200px;
+    width: fit-content;
+    min-width: 160px;
+    padding: 8px 12px;
+    background: #000;
+    border: 3px ridge #00ff00;
+    border-radius: 8px;
+    box-shadow:
+        0 0 15px #00ff0033,
+        inset 0 0 10px rgba(0, 255, 0, 0.15);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: nowrap;
+    box-sizing: border-box;
+    overflow: hidden;
+    font-family: 'Courier New', 'Lucida Console', monospace;
+    font-weight: bold;
+}
+/* Scanlines effect */
+#loader::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    background: linear-gradient(
+        rgba(0, 30, 0, 0.5) 50%,
+        rgba(0, 50, 0, 0.5) 50%
+    );
+    background-size: 100% 3px;
+    border-radius: 5px;
+    pointer-events: none;
+}
+/* Glowing green */
+#loader, #playBtn, #uploadBtn, #disc, #trackContainer {
+    color: #00ff00;
+    text-shadow:
+        0 0 4px #00ff00,
+        0 0 8px #00ff00;
+    z-index: 2;
+}
+#playBtn, #uploadBtn, #disc {
+    font-size: 1.4em;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+}
+/* Spinning disc */
+#disc {
+    display: none;
+    animation: spin 2s linear infinite;
+}
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+/* Track name container */
+#trackContainer {
+    flex: 1;
+    min-width: 80px;
+    height: 20px;
+    overflow: hidden;
+    position: relative;
+}
+#trackName {
+    font-size: 0.75em;
+    white-space: nowrap;
+    display: inline-block;
+    padding-left: 100%;
+    animation: scroll-left 10s linear infinite;
+}
+@keyframes scroll-left {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-100%); }
+}
+#trackContainer:hover #trackName {
+    animation-play-state: paused;
+}
+#loader.loaded { border-color: #00ff00; }
+#loader.failed {
+    border-color: #ff0000;
+    color: #ff0000;
+    text-shadow: 0 0 8px #ff0000;
+}
+input[type="file"] { display: none; }
+
+/* === FIREFLY GLASS BUTTON STYLES === */
+.button-container-mobile {
+    position: fixed;
+    left: 8vw;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 70px;
+    z-index: 100;
+    justify-content: center;
+}
+
+.button-container-left, .button-container-right {
+    position: fixed;
+    top: 15%;
+    bottom: 15%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0;
+    max-height: 70vh;
+    z-index: 100;
+}
+
+.button-container-left { left: 10vw; }
+.button-container-right { right: 10vw; justify-content: flex-start; }
+
+.button-container-left, .button-container-right, .button-container-mobile { display: none; }
+
+@media (max-width: 767px) { .button-container-mobile { display: flex; } }
+@media (min-width: 768px) { .button-container-left, .button-container-right { display: flex; } }
+
+.jar {
+    width: 240px;
+    height: 100px;
+    position: relative;
+    cursor: grab;
+    user-select: none;
+    transform-style: preserve-3d;
+    animation: idleJarMobile 14s infinite ease-in-out;
+    will-change: transform;
+    z-index: 100;
+    border-radius: 60px;
+    overflow: hidden;
+    background: rgba(20, 30, 50, 0.4);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), inset 0 0 50px rgba(100, 150, 100, 0.15);
+    border: 2.5px solid #0a3d2a;
+}
+
+@media (min-width: 768px) {
+    .jar {
+        width: 360px;
+        height: 140px;
+        animation: idleJarDesktop 16s infinite ease-in-out;
+    }
+}
+
+.jar:active { cursor: grabbing; }
+
+.jar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 60px;
+    padding: 3px;
+    background: linear-gradient(45deg, rgba(100, 255, 100, 0.25), rgba(255, 255, 100, 0.2), rgba(100, 200, 255, 0.15));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0.5;
+}
+
+.inner-glow {
+    position: absolute;
+    inset: 15px;
+    border-radius: 50px;
+    background: radial-gradient(circle at 40% 40%, rgba(150, 255, 100, 0.12), transparent 70%);
+    pointer-events: none;
+}
+
+.contents {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.letter {
+    position: absolute;
+    color: #e0ffcc;
+    font-size: 32px;
+    font-weight: bold;
+    text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(150, 255, 100, 0.7);
+    -webkit-text-stroke: 2px #0a3d2a;
+    text-stroke: 2px #0a3d2a;
+    pointer-events: none;
+}
+
+@media (min-width: 768px) {
+    .letter { font-size: 42px; }
+}
+
+.firefly {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: radial-gradient(circle, #e0ffaa, transparent 70%);
+    border-radius: 50%;
+    box-shadow: 0 0 20px 4px #ccff99;
+    pointer-events: none;
+}
+
+@keyframes idleJarMobile {
+    0%, 100% { transform: perspective(1200px) rotateX(0deg) rotateY(0deg); }
+    25% { transform: perspective(1200px) rotateX(-2deg) rotateY(4deg); }
+    50% { transform: perspective(1200px) rotateX(1.5deg) rotateY(-3deg); }
+    75% { transform: perspective(1200px) rotateX(-1.5deg) rotateY(-2.5deg); }
+}
+
+@keyframes idleJarDesktop {
+    0%, 100% { transform: perspective(1600px) rotateX(0deg) rotateY(0deg); }
+    25% { transform: perspective(1600px) rotateX(-4deg) rotateY(7deg); }
+    50% { transform: perspective(1600px) rotateX(3deg) rotateY(-5deg); }
+    75% { transform: perspective(1600px) rotateX(-3deg) rotateY(-6deg); }
+}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<!-- Your retro MP3 player -->
+<div id="loader">
+    <span id="playBtn">▶︎</span>
+    <span id="disc">💿</span>
+    <span id="uploadBtn">📂</span>
+    <div id="trackContainer">
+        <div id="trackName">Wild-Runs.mp3</div>
+    </div>
+</div>
+<input type="file" id="fileInput" accept="audio/mp3,audio/mpeg">
+<audio id="audio" preload="auto"></audio>
+
+<!-- Firefly Glass Buttons -->
+<!-- Mobile -->
+<div class="button-container-mobile">
+  <div class="jar" data-text="Instagram">
+    <div class="inner-glow"></div>
+    <div class="contents"></div>
+  </div>
+  <div class="jar" data-text="Donate">
+    <div class="inner-glow"></div>
+    <div class="contents"></div>
+  </div>
+  <div class="jar" data-text="Strava">
+    <div class="inner-glow"></div>
+    <div class="contents"></div>
+  </div>
+</div>
+
+<!-- Desktop left: Instagram + Strava -->
+<div class="button-container-left">
+  <div class="jar" data-text="Instagram">
+    <div class="inner-glow"></div>
+    <div class="contents"></div>
+  </div>
+  <div class="jar" data-text="Strava">
+    <div class="inner-glow"></div>
+    <div class="contents"></div>
+  </div>
+</div>
+
+<!-- Desktop right: Donate -->
+<div class="button-container-right">
+  <div class="jar" data-text="Donate">
+    <div class="inner-glow"></div>
+    <div class="contents"></div>
+  </div>
+</div>
+
+<script>
+// === YOUR ORIGINAL VISUALIZER CODE ===
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const audio = document.getElementById('audio');
+const loader = document.getElementById('loader');
+const playBtn = document.getElementById('playBtn');
+const disc = document.getElementById('disc');
+const uploadBtn = document.getElementById('uploadBtn');
+const trackName = document.getElementById('trackName');
+const fileInput = document.getElementById('fileInput');
+let audioCtx, analyser, source, dataArray, bufferLength;
+let started = false;
+let particles = [];
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* Default track */
+audio.src = "Wild-Runs.mp3";
+audio.load();
+trackName.textContent = "Wild-Runs.mp3";
+audio.addEventListener('canplaythrough', () => loader.classList.add('loaded'));
+audio.addEventListener('error', () => {
+    loader.classList.add('failed');
+    trackName.textContent = "Failed to load";
+});
+
+/* Audio init */
+function initAudio() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+    source = audioCtx.createMediaElementSource(audio);
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+/* Visualizer */
+function animate() {
+    requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(0,0,0,0.08)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    if (analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        let bassSum = 0;
+        for (let i = 0; i < 40; i++) bassSum += dataArray[i];
+        const bass = bassSum / (40 * 255);
+        const pulse = 80 + bass * 450;
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, pulse);
+        grad.addColorStop(0, 'rgba(255,0,102,1)');
+        grad.addColorStop(0.4, 'rgba(255,0,102,0.5)');
+        grad.addColorStop(1, 'rgba(0,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, pulse, 0, Math.PI * 2);
+        ctx.fill();
+        const bars = 128;
+        for (let i = 0; i < bars; i++) {
+            const angle = i / bars * Math.PI * 2;
+            const idx = Math.floor(i / bars * bufferLength);
+            const h = (dataArray[idx] / 255) * 600 + bass * 300;
+            const r = 140 + bass * 120;
+            ctx.strokeStyle = `rgba(255,0,102,${0.7 + bass * 0.3})`;
+            ctx.lineWidth = 6 + bass * 12;
+            ctx.shadowBlur = 40 + bass * 60;
+            ctx.shadowColor = '#ff0066';
+            ctx.beginPath();
+            ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+            ctx.lineTo(cx + Math.cos(angle) * (r + h), cy + Math.sin(angle) * (r + h));
+            ctx.stroke();
+        }
+        if (bass > 0.65 && Math.random() > 0.3) {
+            for (let i = 0; i < 10; i++) {
+                const a = Math.random() * Math.PI * 2;
+                particles.push({
+                    x: cx, y: cy,
+                    vx: Math.cos(a) * (20 + bass * 50),
+                    vy: Math.sin(a) * (20 + bass * 50),
+                    life: 45,
+                    color: i % 2 ? '#00ffff' : '#ff0066'
+                });
+            }
+        }
+    }
+    particles = particles.filter(p => p.life > 0);
+    particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 1.8;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.life / 7;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = p.color;
+        ctx.beginPath();
+        ctx.moveTo(canvas.width / 2, canvas.height / 2);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+    });
+    ctx.shadowBlur = 0;
+}
+animate();
+
+/* Play / Pause */
+playBtn.addEventListener('click', () => {
+    if (!started) {
+        initAudio();
+        started = true;
+    }
+    if (audio.paused) {
+        audio.play().catch(() => {
+            loader.classList.add('failed');
+            trackName.textContent = "Playback blocked";
+        });
+    } else {
+        audio.pause();
+    }
+});
+audio.addEventListener('play', () => {
+    playBtn.textContent = "❚❚";
+    disc.style.display = "inline";
+});
+audio.addEventListener('pause', () => {
+    playBtn.textContent = "▶︎";
+    disc.style.display = "none";
+});
+
+/* Upload */
+uploadBtn.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file && file.type === 'audio/mpeg') {
+        audio.src = URL.createObjectURL(file);
+        trackName.textContent = file.name;
+        loader.classList.remove('failed');
+        loader.classList.add('loaded');
+        trackName.style.animation = 'none';
+        trackName.offsetHeight;
+        trackName.style.animation = 'scroll-left 10s linear infinite';
+    }
+});
+
+// === FIREFLY GLASS BUTTONS SCRIPT ===
+const jars = document.querySelectorAll('.jar');
+const DRAG_THRESHOLD = 15;
+const MAX_DRAG_DISTANCE = 70;
+const k = 0.28;
+const friction = 0.88;
+
+function initJar(jar) {
+  const text = jar.dataset.text;
+  const contents = jar.querySelector('.contents');
+  contents.innerHTML = '';
+
+  const letters = [];
+  const letterData = [];
+  const fireflies = [];
+  const fireflyData = [];
+
+  void jar.offsetWidth;
+
+  const jarW = jar.clientWidth;
+  const jarH = jar.clientHeight;
+  const centerX = jarW / 2;
+  const centerY = jarH / 2;
+
+  const spacing = jarW >= 360 ? 32 : 22;
+
+  // Letters
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const span = document.createElement('div');
+    span.className = 'letter';
+    span.textContent = char;
+    contents.appendChild(span);
+    letters.push(span);
+
+    const baseX = centerX + (i - (text.length - 1) / 2) * spacing;
+
+    span.style.left = `${baseX}px`;
+    span.style.top = `${centerY}px`;
+    span.style.transform = 'translate(-50%, -50%)';
+
+    letterData.push({
+      el: span,
+      baseX,
+      baseY: centerY,
+      currentX: baseX,
+      currentY: centerY,
+      vx: 0,
+      vy: 0
+    });
+  }
+
+  // Fireflies with constant motion
+  const flyCount = jarW >= 360 ? 12 : 8;
+  for (let i = 0; i < flyCount; i++) {
+    const fly = document.createElement('div');
+    fly.className = 'firefly';
+    contents.appendChild(fly);
+    fireflies.push(fly);
+
+    const x = Math.random() * (jarW - 40) + 20;
+    const y = Math.random() * (jarH - 40) + 20;
+
+    fireflyData.push({
+      el: fly,
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 1.5,
+      vy: (Math.random() - 0.5) * 1.5,
+      wanderPhaseX: Math.random() * Math.PI * 2,
+      wanderPhaseY: Math.random() * Math.PI * 2,
+      wanderSpeedX: 0.004 + Math.random() * 0.006,
+      wanderSpeedY: 0.005 + Math.random() * 0.007,
+      pulsePhase: Math.random() * Math.PI * 2,
+      baseGlow: 0.7 + Math.random() * 0.3,
+      sizePhase: Math.random() * Math.PI * 2,
+      sizeBase: 0.8 + Math.random() * 0.5
+    });
+
+    fly.style.left = `${x}px`;
+    fly.style.top = `${y}px`;
+  }
+
+  let isDragging = false;
+  let startX = 0, startY = 0;
+  let currentPullX = 0, currentPullY = 0;
+  let velX = 0, velY = 0;
+
+  const updateJar = (pullX, pullY, shakeIntensity) => {
+    const dist = Math.hypot(pullX, pullY);
+    const intensity = Math.min(dist / MAX_DRAG_DISTANCE, 1);
+
+    const anchorX = pullX * 0.7;
+    const anchorY = pullY * 0.7;
+    jar.style.transform = `perspective(1200px)
+                           translateX(${anchorX}px)
+                           translateY(${anchorY}px)
+                           translateZ(${20 + dist / 5}px)
+                           rotateX(${-pullY * 0.12}deg)
+                           rotateY(${pullX * 0.18}deg)`;
+
+    const force = intensity * shakeIntensity * 1.0;
+
+    // Letters
+    letterData.forEach(l => {
+      if (isDragging) {
+        l.vx += (Math.random() - 0.5) * force * 2.8;
+        l.vy += (Math.random() - 0.5) * force * 2.8 - 0.4;
+      }
+
+      l.vx *= 0.88;
+      l.vy *= 0.88;
+
+      l.currentX += l.vx;
+      l.currentY += l.vy;
+
+      if (!isDragging) {
+        l.currentX += (l.baseX - l.currentX) * 0.08;
+        l.currentY += (l.baseY - l.currentY) * 0.08;
+      }
+
+      l.currentX = Math.max(30, Math.min(jarW - 30, l.currentX));
+      l.currentY = Math.max(20, Math.min(jarH - 20, l.currentY));
+
+      l.el.style.left = `${l.currentX}px`;
+      l.el.style.top = `${l.currentY}px`;
+    });
+
+    // Fireflies - constant lively motion
+    const time = Date.now() / 1000;
+    fireflyData.forEach(f => {
+      f.wanderPhaseX += f.wanderSpeedX;
+      f.wanderPhaseY += f.wanderSpeedY;
+      const wanderX = Math.sin(f.wanderPhaseX) * 1.2;
+      const wanderY = Math.cos(f.wanderPhaseY) * 1.0;
+
+      if (isDragging) {
+        f.vx += (Math.random() - 0.5) * force * 3 + pullX * 0.02;
+        f.vy += (Math.random() - 0.5) * force * 3 + pullY * 0.02;
+      }
+
+      f.vx = f.vx * 0.92 + wanderX * 0.08;
+      f.vy = f.vy * 0.92 + wanderY * 0.08;
+
+      f.x += f.vx;
+      f.y += f.vy;
+
+      f.x = Math.max(10, Math.min(jarW - 10, f.x));
+      f.y = Math.max(10, Math.min(jarH - 10, f.y));
+
+      const pulse = 0.8 + Math.sin(time * 2 + f.pulsePhase) * 0.4;
+      const sizePulse = f.sizeBase + Math.sin(time * 1.5 + f.sizePhase) * 0.3;
+
+      f.el.style.left = `${f.x}px`;
+      f.el.style.top = `${f.y}px`;
+      f.el.style.transform = `scale(${sizePulse})`;
+      f.el.style.opacity = f.baseGlow * pulse;
+      f.el.style.boxShadow = `0 0 ${25 * pulse}px 6px #ccff99`;
+    });
+  };
+
+  const resetJar = () => {
+    jar.style.animation = window.innerWidth >= 768 ? 'idleJarDesktop 16s infinite ease-in-out' : 'idleJarMobile 14s infinite ease-in-out';
+    jar.style.transform = '';
+    letterData.forEach(l => {
+      l.vx = l.vy = 0;
+      l.el.style.left = `${l.baseX}px`;
+      l.el.style.top = `${l.baseY}px`;
+    });
+    jar.style.zIndex = '100';
+  };
+
+  jar.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    startX = e.clientX || (e.touches && e.touches[0].clientX);
+    startY = e.clientY || (e.touches && e.touches[0].clientY);
+    jar.style.animation = 'none';
+    jar.style.zIndex = '999';
+    jar.setPointerCapture(e.pointerId);
+  });
+
+  jar.addEventListener('pointermove', e => {
+    if (!e.buttons && !(e.touches && e.touches.length)) return;
+
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+    const deltaX = clientX - startX;
+    const deltaY = clientY - startY;
+    const moved = Math.hypot(deltaX, deltaY);
+
+    if (!isDragging && moved > DRAG_THRESHOLD) isDragging = true;
+
+    if (isDragging) {
+      let limitedX = deltaX;
+      let limitedY = deltaY;
+      const dist = Math.hypot(limitedX, limitedY);
+      if (dist > MAX_DRAG_DISTANCE) {
+        const angle = Math.atan2(limitedY, limitedX);
+        limitedX = Math.cos(angle) * MAX_DRAG_DISTANCE;
+        limitedY = Math.sin(angle) * MAX_DRAG_DISTANCE;
+      }
+
+      currentPullX = limitedX;
+      currentPullY = limitedY;
+      const shake = dist / 12;
+      updateJar(currentPullX, currentPullY, shake);
+    } else {
+      updateJar(0, 0, 0);
+    }
+  });
+
+  const springBack = () => {
+    const animate = () => {
+      velX += -currentPullX * k;
+      velY += -currentPullY * k;
+      velX *= friction;
+      velY *= friction;
+      currentPullX += velX;
+      currentPullY += velY;
+
+      const dist = Math.hypot(currentPullX, currentPullY);
+      const shake = dist / 10;
+
+      updateJar(currentPullX, currentPullY, shake);
+
+      if (dist > 0.5 || Math.abs(velX) > 0.1) {
+        requestAnimationFrame(animate);
+      } else {
+        currentPullX = currentPullY = velX = velY = 0;
+        resetJar();
+      }
+    };
+    animate();
+  };
+
+  jar.addEventListener('pointerup', () => {
+    if (isDragging) {
+      isDragging = false;
+      springBack();
+    } else {
+      updateJar(0, 0, 4);
+      setTimeout(resetJar, 300);
+    }
+  });
+
+  jar.addEventListener('pointercancel', springBack);
+
+  const idleLoop = () => {
+    if (!isDragging) updateJar(0, 0, 0);
+    requestAnimationFrame(idleLoop);
+  };
+  idleLoop();
+
+  resetJar();
+}
+
+window.addEventListener('load', () => jars.forEach(initJar));
+window.addEventListener('resize', () => jars.forEach(initJar));
+</script>
+</body>
+</html>
