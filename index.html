@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  
+  <title>Weavers Wild Runs</title>
+  <meta property="og:title" content="Weavers Wild Runs">
+  <meta property="og:description" content="Immersive infinite universe with firefly glass buttons and reactive music visualizer.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://yourdomain.com/preview-image.jpg">
+  <meta property="og:url" content="https://yourdomain.com/">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      overflow: hidden; 
+      background: #000; 
+      height: 100vh; 
+      font-family: 'Courier New', monospace;
+      color: #ff0066;
+    }
+    canvas { 
+      display: block; 
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    /* Retro MP3 Player */
+    #loader {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      max-width: 200px;
+      width: fit-content;
+      min-width: 160px;
+      padding: 8px 12px;
+      background: #000;
+      border: 3px ridge #00ff00;
+      border-radius: 8px;
+      box-shadow: 0 0 15px #00ff0033, inset 0 0 10px rgba(0, 255, 0, 0.15);
+      z-index: 101;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+      box-sizing: border-box;
+      overflow: hidden;
+      font-family: 'Courier New', 'Lucida Console', monospace;
+      font-weight: bold;
+      color: #00ff00;
+      text-shadow: 0 0 4px #00ff00, 0 0 8px #00ff00;
+    }
+    #loader::before {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      background: linear-gradient(rgba(0,30,0,0.5) 50%, rgba(0,50,0,0.5) 50%);
+      background-size: 100% 3px;
+      border-radius: 5px;
+      pointer-events: none;
+    }
+    #playBtn, #uploadBtn, #disc {
+      font-size: 1.4em;
+      cursor: pointer;
+      user-select: none;
+      flex-shrink: 0;
+    }
+    #disc {
+      display: none;
+      animation: spin 2s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    #trackContainer {
+      flex: 1;
+      min-width: 80px;
+      height: 20px;
+      overflow: hidden;
+      position: relative;
+    }
+    #trackName {
+      font-size: 0.75em;
+      white-space: nowrap;
+      display: inline-block;
+      padding-left: 100%;
+      animation: scroll-left 10s linear infinite;
+    }
+    @keyframes scroll-left {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
+    #trackContainer:hover #trackName { animation-play-state: paused; }
+    #loader.loaded { border-color: #00ff00; }
+    #loader.failed { border-color: #ff0000; color: #ff0000; text-shadow: 0 0 8px #ff0000; }
+    input[type="file"] { display: none; }
+
+    /* FIREFLY GLASS BUTTONS - PERFECTLY CENTERED & RESPONSIVE */
+    .buttons-container {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 100;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .buttons-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 50px;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      max-height: 100vh;
+      pointer-events: auto;
+    }
+
+    @media (orientation: landscape) or (min-width: 900px) {
+      .buttons-wrapper {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 80px;
+      }
+    }
+
+    @media (orientation: portrait) and (max-width: 899px) {
+      .buttons-wrapper {
+        flex-direction: column;
+        gap: 60px;
+      }
+    }
+
+    .jar {
+      flex: 0 1 auto;
+      width: 260px;
+      height: 100px;
+      min-width: 220px;
+      max-width: 100%;
+      position: relative;
+      cursor: grab;
+      user-select: none;
+      transform-style: preserve-3d;
+      animation: idleJar 15s infinite ease-in-out;
+      will-change: transform;
+      border-radius: 60px;
+      overflow: hidden;
+      background: rgba(20, 30, 50, 0.4);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), inset 0 0 50px rgba(100, 150, 100, 0.15);
+      border: 2.5px solid #0a3d2a;
+    }
+
+    @media (min-width: 900px) {
+      .jar {
+        width: 340px;
+        height: 130px;
+      }
+    }
+
+    @media (max-height: 600px) and (orientation: portrait) {
+      .jar {
+        width: 220px;
+        height: 90px;
+      }
+      .buttons-wrapper { gap: 40px; }
+    }
+
+    .jar:active { cursor: grabbing; }
+    .jar::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 60px;
+      padding: 3px;
+      background: linear-gradient(45deg, rgba(100, 255, 100, 0.25), rgba(255, 255, 100, 0.2), rgba(100, 200, 255, 0.15));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      opacity: 0.5;
+    }
+    .inner-glow {
+      position: absolute;
+      inset: 15px;
+      border-radius: 50px;
+      background: radial-gradient(circle at 40% 40%, rgba(150, 255, 100, 0.12), transparent 70%);
+      pointer-events: none;
+    }
+    .contents { position: absolute; inset: 0; pointer-events: none; }
+    .letter {
+      position: absolute;
+      color: #ffffff;
+      font-size: 32px;
+      font-weight: bold;
+      text-transform: uppercase;
+      text-shadow: 0 0 8px #ffffff, 0 0 16px #ccff99, 0 0 24px #99ff99, 0 0 32px #66ff66, 0 0 40px #33ff33;
+      -webkit-text-stroke: 2px #0a3d2a;
+      text-stroke: 2px #0a3d2a;
+      pointer-events: none;
+      will-change: left, top;
+    }
+    @media (min-width: 900px) {
+      .letter { font-size: 40px; }
+    }
+    @media (max-height: 600px) and (orientation: portrait) {
+      .letter { font-size: 28px; }
+    }
+    .firefly {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: radial-gradient(circle, #e0ffaa, transparent 70%);
+      border-radius: 50%;
+      box-shadow: 0 0 20px 4px #ccff99;
+      pointer-events: none;
+    }
+    @keyframes idleJar {
+      0%, 100% { transform: perspective(1400px) rotateX(0deg) rotateY(0deg); }
+      25% { transform: perspective(1400px) rotateX(-3deg) rotateY(5deg); }
+      50% { transform: perspective(1400px) rotateX(2.5deg) rotateY(-4deg); }
+      75% { transform: perspective(1400px) rotateX(-2deg) rotateY(-4deg); }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <!-- Retro MP3 Player -->
+  <div id="loader">
+    <span id="playBtn">▶︎</span>
+    <span id="disc">💿</span>
+    <span id="uploadBtn">📂</span>
+    <div id="trackContainer">
+      <div id="trackName">Wild-Runs.mp3</div>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept="audio/mp3,audio/mpeg">
+  <audio id="audio" preload="auto"></audio>
+
+  <!-- Firefly Glass Buttons -->
+  <div class="buttons-container">
+    <div class="buttons-wrapper">
+      <div class="jar" data-text="Instagram" data-link="https://www.instagram.com/weaverswildruns?igsh=b2hrbjRtNzhwNDk3">
+        <div class="inner-glow"></div>
+        <div class="contents"></div>
+      </div>
+      <div class="jar" data-text="Donate" data-link="https://www.justgiving.com/page/weaverswildruns?utm_medium=FR&utm_source=WA&utm_content=link_in_bio&fbclid=PAZXh0bgNhZW0CMTEAc3J0YwZhcHBfaWQMMjU2MjgxMDQwNTU4AAGnl8qTqb0Sy0FzCnqqgprC_uvBsz1MgaWj5bVxHCV6pPAAgkKRHlDFPFjTUO0_aem_lW1GCJmN78eQvX6fdaaigQ">
+        <div class="inner-glow"></div>
+        <div class="contents"></div>
+      </div>
+      <div class="jar" data-text="Strava" data-link="https://www.strava.com/athletes/20154088">
+        <div class="inner-glow"></div>
+        <div class="contents"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Canvas setup
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let width, height;
+    const resize = () => {
+      width = canvas.width = window.innerWidth * devicePixelRatio;
+      height = canvas.height = window.innerHeight * devicePixelRatio;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Universe Configuration
+    const CONFIG = {
+      cellSize: 1800,
+      cellsInView: 4,
+      starsPerCell: 280,
+      starColors: ['#ffffff', '#f0f4ff', '#e0e8ff', '#cddfff', '#ffebff', '#e6d0ff', '#d4b3ff', '#c4e1ff', '#fff8e6'],
+      nebulaColors: [
+        'rgba(100, 50, 150, 0.08)',
+        'rgba(120, 60, 180, 0.07)',
+        'rgba(80, 100, 200, 0.09)',
+        'rgba(150, 50, 120, 0.08)',
+        'rgba(200, 100, 255, 0.06)'
+      ],
+      nebulaChance: 0.10,
+      blackHoleChance: 0.033
+    };
+
+    const stars = [];
+    const nebulae = [];
+    const blackHoles = [];
+    const loadedCells = new Set();
+    let seedCounter = 0;
+    const seededRandom = (baseSeed) => {
+      seedCounter++;
+      const x = Math.sin(baseSeed + seedCounter) * 10000;
+      return x - Math.floor(x);
+    };
+
+    const generateCell = (cx, cy, cz) => {
+      const key = `${cx},${cy},${cz}`;
+      if (loadedCells.has(key)) return;
+      loadedCells.add(key);
+      let seed = cx * 12345 + cy * 6789 + cz * 31415;
+
+      for (let i = 0; i < CONFIG.starsPerCell; i++) {
+        const x = cx * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize;
+        const y = cy * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize;
+        const z = cz * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize + 100;
+        stars.push({
+          x, y, z,
+          baseSize: seededRandom(seed) * 0.9 + 0.3,
+          color: CONFIG.starColors[Math.floor(seededRandom(seed) * CONFIG.starColors.length)],
+          twinklePhase: seededRandom(seed) * Math.PI * 2,
+          twinkleSpeed: seededRandom(seed) * 0.8 + 0.6
+        });
+      }
+
+      if (seededRandom(seed) < CONFIG.nebulaChance) {
+        const nx = cx * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize;
+        const ny = cy * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize;
+        const nz = cz * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize + 500;
+        const radius = seededRandom(seed) * 300 + 200;
+        const color = CONFIG.nebulaColors[Math.floor(seededRandom(seed) * CONFIG.nebulaColors.length)];
+        nebulae.push({ x: nx, y: ny, z: nz, radius, color });
+      }
+
+      if (seededRandom(seed) < CONFIG.blackHoleChance) {
+        const bx = cx * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize;
+        const by = cy * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize;
+        const bz = cz * CONFIG.cellSize + seededRandom(seed) * CONFIG.cellSize + 300;
+        const radius = 80 + seededRandom(seed) * 70;
+        blackHoles.push({ x: bx, y: by, z: bz, radius });
+      }
+    };
+
+    // Camera controls
+    let pitch = 0;
+    let yaw = 0;
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.key] = true);
+    window.addEventListener('keyup', e => keys[e.key] = false);
+
+    const updateKeyboard = delta => {
+      const speed = 1.2 * delta;
+      if (keys['ArrowUp']) pitch -= speed;
+      if (keys['ArrowDown']) pitch += speed;
+      if (keys['ArrowLeft']) yaw -= speed;
+      if (keys['ArrowRight']) yaw += speed;
+    };
+
+    const handleOrientation = event => {
+      if (event.gamma === null || event.beta === null) return;
+      yaw = (event.gamma / 90) * 0.7;
+      pitch = (event.beta / 90) * 0.7;
+    };
+
+    if (window.DeviceOrientationEvent) {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const requestPermission = () => {
+          DeviceOrientationEvent.requestPermission()
+            .then(response => {
+              if (response === 'granted') {
+                window.addEventListener('deviceorientation', handleOrientation);
+              }
+            })
+            .catch(console.error);
+        };
+        canvas.addEventListener('touchstart', requestPermission, { once: true });
+        canvas.addEventListener('click', requestPermission, { once: true });
+      } else {
+        window.addEventListener('deviceorientation', handleOrientation);
+      }
+    }
+
+    // Audio & Visualizer
+    const audio = document.getElementById('audio');
+    const loader = document.getElementById('loader');
+    const playBtn = document.getElementById('playBtn');
+    const disc = document.getElementById('disc');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const trackName = document.getElementById('trackName');
+    const fileInput = document.getElementById('fileInput');
+
+    let audioCtx, analyser, source, dataArray, bufferLength;
+    let isAudioStarted = false;
+    let particles = [];
+
+    function initAudio() {
+      if (isAudioStarted) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      bufferLength = analyser.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+      source = audioCtx.createMediaElementSource(audio);
+      source.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      isAudioStarted = true;
+    }
+
+    audio.src = "Wild-Runs.mp3";
+    audio.load();
+    trackName.textContent = "Wild-Runs.mp3";
+
+    audio.addEventListener('canplaythrough', () => loader.classList.add('loaded'));
+    audio.addEventListener('error', () => {
+      loader.classList.add('failed');
+      trackName.textContent = "Failed to load";
+    });
+
+    playBtn.addEventListener('click', () => {
+      initAudio();
+      if (audio.paused) {
+        audio.play().catch(() => {
+          loader.classList.add('failed');
+          trackName.textContent = "Playback blocked";
+        });
+      } else {
+        audio.pause();
+      }
+    });
+
+    audio.addEventListener('play', () => {
+      playBtn.textContent = "❚❚";
+      disc.style.display = "inline";
+    });
+    audio.addEventListener('pause', () => {
+      playBtn.textContent = "▶︎";
+      disc.style.display = "none";
+    });
+
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (file && file.type === 'audio/mpeg') {
+        audio.src = URL.createObjectURL(file);
+        trackName.textContent = file.name;
+        loader.classList.remove('failed');
+        loader.classList.add('loaded');
+      }
+    });
+
+    // Main animation loop
+    let lastTime = 0;
+    const animate = time => {
+      if (!lastTime) lastTime = time;
+      const delta = (time - lastTime) / 1000;
+      lastTime = time;
+
+      updateKeyboard(delta);
+
+      // Trail + background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
+      ctx.fillRect(0, 0, width, height);
+
+      const bgGrad = ctx.createRadialGradient(width / 2, height / 2, 0, width / 2, height / 2, Math.hypot(width, height) / 2);
+      bgGrad.addColorStop(0, '#1a0033');
+      bgGrad.addColorStop(0.5, '#0d001a');
+      bgGrad.addColorStop(1, '#000000');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      const currentTime = time * 0.001;
+
+      // Update visible cells
+      const lookX = Math.sin(yaw) * 1400;
+      const lookY = Math.sin(pitch) * 1400;
+      const centerX = Math.floor(lookX / CONFIG.cellSize);
+      const centerY = Math.floor(lookY / CONFIG.cellSize);
+      for (let dx = -CONFIG.cellsInView; dx <= CONFIG.cellsInView; dx++) {
+        for (let dy = -CONFIG.cellsInView; dy <= CONFIG.cellsInView; dy++) {
+          for (let dz = -1; dz <= CONFIG.cellsInView; dz++) {
+            generateCell(centerX + dx, centerY + dy, dz);
+          }
+        }
+      }
+
+      // Draw nebulae
+      nebulae.forEach(neb => {
+        let rx = neb.x; let rz = neb.z;
+        const rotX = rx * Math.cos(yaw) - rz * Math.sin(yaw);
+        const rotZ = rx * Math.sin(yaw) + rz * Math.cos(yaw);
+        let ry = neb.y; rz = rotZ;
+        const rotY = ry * Math.cos(pitch) - rz * Math.sin(pitch);
+        const finalZ = ry * Math.sin(pitch) + rz * Math.cos(pitch);
+        if (finalZ > 100) {
+          const scale = 800 / finalZ;
+          const sx = width / 2 + rotX * scale;
+          const sy = height / 2 + rotY * scale;
+          const radius = neb.radius * scale;
+          const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+          const baseOpacity = parseFloat(neb.color.match(/[\d.]+(?=\))/)[0]);
+          grad.addColorStop(0, neb.color.replace(baseOpacity, baseOpacity * 1.5));
+          grad.addColorStop(0.7, neb.color);
+          grad.addColorStop(1, 'transparent');
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      // Draw black holes
+      blackHoles.forEach(bh => {
+        let rx = bh.x; let rz = bh.z;
+        const rotX = rx * Math.cos(yaw) - rz * Math.sin(yaw);
+        const rotZ = rx * Math.sin(yaw) + rz * Math.cos(yaw);
+        let ry = bh.y; rz = rotZ;
+        const rotY = ry * Math.cos(pitch) - rz * Math.sin(pitch);
+        const finalZ = ry * Math.sin(pitch) + rz * Math.cos(pitch);
+        if (finalZ > 100) {
+          const scale = 800 / finalZ;
+          const sx = width / 2 + rotX * scale;
+          const sy = height / 2 + rotY * scale;
+          const radius = bh.radius * scale * 1.2;
+          const glowGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+          glowGrad.addColorStop(0, 'rgba(100, 50, 200, 0)');
+          glowGrad.addColorStop(0.4, 'rgba(120, 80, 220, 0.3)');
+          glowGrad.addColorStop(1, 'transparent');
+          ctx.fillStyle = glowGrad;
+          ctx.beginPath();
+          ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.arc(sx, sy, radius * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      // Draw stars
+      stars.forEach(star => {
+        let rx = star.x; let rz = star.z;
+        const rotX = rx * Math.cos(yaw) - rz * Math.sin(yaw);
+        const rotZ = rx * Math.sin(yaw) + rz * Math.cos(yaw);
+        let ry = star.y; rz = rotZ;
+        const rotY = ry * Math.cos(pitch) - rz * Math.sin(pitch);
+        const finalZ = ry * Math.sin(pitch) + rz * Math.cos(pitch);
+        if (finalZ > 50) {
+          const scale = 800 / finalZ;
+          const sx = width / 2 + rotX * scale;
+          const sy = height / 2 + rotY * scale;
+          const size = star.baseSize * scale;
+          if (size > 0.3 && sx > -100 && sx < width + 100 && sy > -100 && sy < height + 100) {
+            const twinkle = Math.sin(currentTime * star.twinkleSpeed + star.twinklePhase) * 0.3 + 0.8;
+            ctx.globalAlpha = twinkle * Math.min(1, scale * 1.2);
+            ctx.fillStyle = star.color;
+            ctx.beginPath();
+            ctx.arc(sx, sy, size, 0, Math.PI * 2);
+            ctx.fill();
+            if (size > 1.3) {
+              ctx.shadowBlur = size * 8;
+              ctx.shadowColor = star.color;
+              ctx.fill();
+              ctx.shadowBlur = 0;
+            }
+          }
+        }
+      });
+      ctx.globalAlpha = 1;
+
+      // Music visualizer (only when playing)
+      if (!audio.paused && analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        const cx = width / 2;
+        const cy = height / 2;
+        let bassSum = 0;
+        for (let i = 0; i < 40; i++) bassSum += dataArray[i];
+        const bass = bassSum / (40 * 255);
+        const pulse = 80 + bass * 450;
+
+        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, pulse);
+        grad.addColorStop(0, 'rgba(255,0,102,1)');
+        grad.addColorStop(0.4, 'rgba(255,0,102,0.5)');
+        grad.addColorStop(1, 'rgba(0,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        const bars = 128;
+        for (let i = 0; i < bars; i++) {
+          const angle = i / bars * Math.PI * 2;
+          const idx = Math.floor(i / bars * bufferLength);
+          const h = (dataArray[idx] / 255) * 600 + bass * 300;
+          const r = 140 + bass * 120;
+          ctx.strokeStyle = `rgba(255,0,102,${0.7 + bass * 0.3})`;
+          ctx.lineWidth = 6 + bass * 12;
+          ctx.shadowBlur = 40 + bass * 60;
+          ctx.shadowColor = '#ff0066';
+          ctx.beginPath();
+          ctx.moveTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r);
+          ctx.lineTo(cx + Math.cos(angle) * (r + h), cy + Math.sin(angle) * (r + h));
+          ctx.stroke();
+        }
+
+        if (bass > 0.65 && Math.random() > 0.3) {
+          for (let i = 0; i < 10; i++) {
+            const a = Math.random() * Math.PI * 2;
+            particles.push({
+              x: cx, y: cy,
+              vx: Math.cos(a) * (20 + bass * 50),
+              vy: Math.sin(a) * (20 + bass * 50),
+              life: 45,
+              color: i % 2 ? '#00ffff' : '#ff0066'
+            });
+          }
+        }
+      }
+
+      // Draw particles
+      particles = particles.filter(p => p.life > 0);
+      particles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 1.8;
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.life / 7;
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = p.color;
+        ctx.beginPath();
+        ctx.moveTo(width / 2, height / 2);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      });
+      ctx.shadowBlur = 0;
+
+      requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+
+    // Firefly glass buttons script
+    const jars = document.querySelectorAll('.jar');
+    const DRAG_THRESHOLD = 8;
+    const MAX_DRAG_DISTANCE = 70;
+    const k = 0.12;
+    const friction = 0.94;
+    const LONG_PRESS_DURATION = 1000;
+
+    function initJar(jar) {
+      const text = jar.dataset.text;
+      const link = jar.dataset.link;
+      const contents = jar.querySelector('.contents');
+      contents.innerHTML = '';
+
+      const letters = [];
+      const letterData = [];
+      const fireflies = [];
+      const fireflyData = [];
+
+      void jar.offsetWidth;
+      const jarW = jar.clientWidth;
+      const jarH = jar.clientHeight;
+      const centerX = jarW / 2;
+      const centerY = jarH / 2;
+      const spacing = jarW >= 340 ? 32 : (jarW >= 260 ? 28 : 24);
+
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        const span = document.createElement('div');
+        span.className = 'letter';
+        span.textContent = char;
+        contents.appendChild(span);
+        const baseX = centerX + (i - (text.length - 1) / 2) * spacing;
+        span.style.left = `${baseX}px`;
+        span.style.top = `${centerY}px`;
+        span.style.transform = 'translate(-50%, -50%)';
+        letterData.push({
+          el: span,
+          baseX, baseY: centerY,
+          currentX: baseX, currentY: centerY,
+          vx: 0, vy: 0
+        });
+      }
+
+      const flyCount = jarW >= 340 ? 12 : 9;
+      for (let i = 0; i < flyCount; i++) {
+        const fly = document.createElement('div');
+        fly.className = 'firefly';
+        contents.appendChild(fly);
+        const x = Math.random() * (jarW - 40) + 20;
+        const y = Math.random() * (jarH - 40) + 20;
+        fireflyData.push({
+          el: fly, x, y,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: (Math.random() - 0.5) * 1.5,
+          wanderPhaseX: Math.random() * Math.PI * 2,
+          wanderPhaseY: Math.random() * Math.PI * 2,
+          wanderSpeedX: 0.004 + Math.random() * 0.006,
+          wanderSpeedY: 0.005 + Math.random() * 0.007,
+          pulsePhase: Math.random() * Math.PI * 2,
+          baseGlow: 0.7 + Math.random() * 0.3,
+          sizePhase: Math.random() * Math.PI * 2,
+          sizeBase: 0.8 + Math.random() * 0.5
+        });
+        fly.style.left = `${x}px`;
+        fly.style.top = `${y}px`;
+      }
+
+      let isDragging = false;
+      let startX = 0, startY = 0;
+      let currentPullX = 0, currentPullY = 0;
+      let velX = 0, velY = 0;
+      let pressTimer = null;
+      let pressStartTime = 0;
+      let isSpringingBack = false;
+
+      const updateJar = (pullX, pullY, shakeIntensity) => {
+        const dist = Math.hypot(pullX, pullY);
+        const intensity = Math.min(dist / MAX_DRAG_DISTANCE, 1);
+        const anchorX = pullX * 0.7;
+        const anchorY = pullY * 0.7;
+        jar.style.transform = `perspective(1200px) translateX(${anchorX}px) translateY(${anchorY}px) translateZ(${20 + dist / 5}px) rotateX(${-pullY * 0.12}deg) rotateY(${pullX * 0.18}deg)`;
+
+        const force = intensity * shakeIntensity * 1.0;
+
+        letterData.forEach(l => {
+          if (isDragging) {
+            l.vx += (Math.random() - 0.5) * force * 2.8;
+            l.vy += (Math.random() - 0.5) * force * 2.8 - 0.4;
+          }
+          l.vx *= 0.88;
+          l.vy *= 0.88;
+          l.currentX += l.vx;
+          l.currentY += l.vy;
+          l.currentX += (l.baseX - l.currentX) * 0.025;
+          l.currentY += (l.baseY - l.currentY) * 0.025;
+          l.currentX = Math.max(30, Math.min(jarW - 30, l.currentX));
+          l.currentY = Math.max(20, Math.min(jarH - 20, l.currentY));
+          l.el.style.left = `${l.currentX}px`;
+          l.el.style.top = `${l.currentY}px`;
+        });
+
+        const time = Date.now() / 1000;
+        fireflyData.forEach(f => {
+          f.wanderPhaseX += f.wanderSpeedX;
+          f.wanderPhaseY += f.wanderSpeedY;
+          const wanderX = Math.sin(f.wanderPhaseX) * 1.2;
+          const wanderY = Math.cos(f.wanderPhaseY) * 1.0;
+          if (isDragging) {
+            f.vx += (Math.random() - 0.5) * force * 3 + pullX * 0.02;
+            f.vy += (Math.random() - 0.5) * force * 3 + pullY * 0.02;
+          }
+          f.vx = f.vx * 0.92 + wanderX * 0.08;
+          f.vy = f.vy * 0.92 + wanderY * 0.08;
+          f.x += f.vx;
+          f.y += f.vy;
+          f.x = Math.max(10, Math.min(jarW - 10, f.x));
+          f.y = Math.max(10, Math.min(jarH - 10, f.y));
+          const pulse = 0.8 + Math.sin(time * 2 + f.pulsePhase) * 0.4;
+          const sizePulse = f.sizeBase + Math.sin(time * 1.5 + f.sizePhase) * 0.3;
+          f.el.style.left = `${f.x}px`;
+          f.el.style.top = `${f.y}px`;
+          f.el.style.transform = `scale(${sizePulse})`;
+          f.el.style.opacity = f.baseGlow * pulse;
+          f.el.style.boxShadow = `0 0 ${25 * pulse}px 6px #ccff99`;
+        });
+      };
+
+      const resetJar = () => {
+        jar.style.animation = 'idleJar 15s infinite ease-in-out';
+        jar.style.transform = '';
+        jar.style.zIndex = '100';
+        isSpringingBack = false;
+      };
+
+      const startInteraction = (clientX, clientY) => {
+        startX = clientX;
+        startY = clientY;
+        jar.style.animation = 'none';
+        jar.style.zIndex = '999';
+        isDragging = false;
+        currentPullX = currentPullY = 0;
+        pressStartTime = Date.now();
+        pressTimer = setTimeout(() => { isDragging = true; }, LONG_PRESS_DURATION);
+      };
+
+      const moveInteraction = (clientX, clientY) => {
+        if (pressTimer === null && !isDragging) return;
+        const deltaX = clientX - startX;
+        const deltaY = clientY - startY;
+        const moved = Math.hypot(deltaX, deltaY);
+        if (isDragging || moved > DRAG_THRESHOLD) {
+          clearTimeout(pressTimer);
+          pressTimer = null;
+          isDragging = true;
+          let limitedX = deltaX;
+          let limitedY = deltaY;
+          const dist = Math.hypot(limitedX, limitedY);
+          if (dist > MAX_DRAG_DISTANCE) {
+            const angle = Math.atan2(limitedY, limitedX);
+            limitedX = Math.cos(angle) * MAX_DRAG_DISTANCE;
+            limitedY = Math.sin(angle) * MAX_DRAG_DISTANCE;
+          }
+          currentPullX = limitedX;
+          currentPullY = limitedY;
+          const shake = dist / 12;
+          updateJar(currentPullX, currentPullY, shake);
+        } else {
+          updateJar(0, 0, 0);
+        }
+      };
+
+      const endInteraction = () => {
+        if (pressTimer) {
+          clearTimeout(pressTimer);
+          pressTimer = null;
+          const duration = Date.now() - pressStartTime;
+          if (duration < LONG_PRESS_DURATION) {
+            window.open(link, '_blank');
+          }
+        }
+        if (isDragging) {
+          isDragging = false;
+          isSpringingBack = true;
+          const spring = () => {
+            velX += -currentPullX * k;
+            velY += -currentPullY * k;
+            velX *= friction;
+            velY *= friction;
+            currentPullX += velX;
+            currentPullY += velY;
+            const dist = Math.hypot(currentPullX, currentPullY);
+            const shake = dist / 10;
+            updateJar(currentPullX, currentPullY, shake);
+            if (dist > 0.5 || Math.abs(velX) > 0.1 || Math.abs(velY) > 0.1) {
+              requestAnimationFrame(spring);
+            } else {
+              currentPullX = currentPullY = velX = velY = 0;
+              resetJar();
+            }
+          };
+          spring();
+        } else {
+          updateJar(0, 0, 4);
+          setTimeout(() => { if (!isDragging && !isSpringingBack) updateJar(0, 0, 0); }, 300);
+        }
+      };
+
+      jar.addEventListener('pointerdown', e => { startInteraction(e.clientX, e.clientY); jar.setPointerCapture(e.pointerId); });
+      jar.addEventListener('pointermove', e => { if (e.buttons > 0) moveInteraction(e.clientX, e.clientY); });
+      jar.addEventListener('pointerup', endInteraction);
+      jar.addEventListener('pointercancel', endInteraction);
+
+      jar.addEventListener('touchstart', e => { e.preventDefault(); const t = e.touches[0]; startInteraction(t.clientX, t.clientY); });
+      jar.addEventListener('touchmove', e => { e.preventDefault(); const t = e.touches[0]; moveInteraction(t.clientX, t.clientY); });
+      jar.addEventListener('touchend', endInteraction);
+
+      const idleLoop = () => {
+        if (!isDragging && !isSpringingBack) updateJar(0, 0, 0);
+        requestAnimationFrame(idleLoop);
+      };
+      idleLoop();
+
+      updateJar(0, 0, 0);
+      jar.style.animation = 'idleJar 15s infinite ease-in-out';
+    }
+
+    window.addEventListener('load', () => jars.forEach(initJar));
+    window.addEventListener('resize', () => jars.forEach(initJar));
+  </script>
+</body>
+</html>
